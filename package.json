@@ -10,6 +10,8 @@
   "license": "ISC",
   "dependencies": {
     "chalk": "^2.1.0",
-    "node-schedule": "^1.2.5"
+    "node-schedule": "^1.2.5",
+    "sleep": "^5.1.1",
+    "tinkerforge": "^2.0.15"
   }
 }
