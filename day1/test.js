@@ -18,24 +18,15 @@ w.initialize().then(testWorksation).catch(err => console.log("Error in test func
 
 /* Write your test code here */
 function testWorksation() {
-
   log("Test started for:");
 
-  /* Calls toString() on the workstation, which prints the info
-   * about the workstation to the screen.
-   */
+  /* Print info about the workstation */
   log(w);
-
-  // Write something on the OLED screen
-  w.devices.oled.writeLine(0, 0, 'Workstation ID: ' +  w.id);
-  w.setStatus("BUSY");
 
   /* Simulate the arrival of a new item */
   var item = new Item(1);
-  item.setType("Blue");
-  item.setWeight(9);
+  w.receiveItem(item);
 
-  w.receciveItem(item)
 
 
 }

@@ -15,6 +15,7 @@ class Workstation {
     this.maxLengthInputQueue = 3;
     this.queue = [];
     this.status = "UNKNOWN";
+    this.action = constants.ACTION_NONE;
 
     /* Create a connection to the workstation's
      * electronic devices
@@ -27,23 +28,9 @@ class Workstation {
     var _this = this;
     return this.devices.setup().then(() => {
 
-      // Turn off right LED
-      this.devices.setLEDMode(constants.LED_ACTION, constants.LED_BLINKING_FAST_RED);
-
-      this.devices.setLEDMode(constants.LED_STATUS, constants.LED_BLINKING_SLOW_BLUE);
-      this.devices.setBeepMode(constants.BUZZER_FAST);
-
-      //this.devices.actionLED.setRGBValue(0, 0, 0);
-
-      //this.devices.singleBeep(4000);
-      //this.devices.beepAndBlinkNTimes(3000, 0, 255, 0, 100, 100, 3);
-
-      /*
-      // Beep 5 times
-      setTimeout(function() {
-        _this.devices.beepNTimes(4000, 200, 200, 5)
-      }, 1500);
-      */
+      this.setStatusLED(constants.WORKSTATION_STATUS_IDLE);
+      this.setActionLED(constants.ACTION_NONE);
+      this.devices.resetButtonLEDs();
 
       // Populate the display with values
       this.devices.updateDisplay();
@@ -51,32 +38,78 @@ class Workstation {
     });
   }
 
-  setStatus(status) {
+  /* Called when the workstation receives a new item */
+  receiveItem(item) {
+    log("Received item: " + item);
+    this.measureItem(item);
+  }
+
+  /* Check if weight and color match the item infos */
+  measureItem(item) {
+    this.devices.registerWeightListener(this.weightChanged);
+
+    log("Measuring item: " + item);
+    this.setActionLED(constants.ACTION_MEASURE);
+
+    var colorText = this.devices.colorText;
+    var weight = this.devices.weight;
+    var _this = this;
+
+    setTimeout(function() {
+      if ((_this.devices.weight > 0) && (weight == _this.devices.weight) && (_this.devices.colorText != "") && (colorText == _this.devices.colorText)) {
+        // Activate left button with short beep
+        _this.devices.singleBeep(250, 4000);
+        _this.devices.setButtonLED(constants.BUTTON_LEFT, constants.BUTTON_LED_ON);
+        return;
+      } else return _this.measureItem(item);
+    }, 1000);
+  }
+
+  weightChanged(weight) {
+    if(this.)
+    console.log("Weight changed: " + weight);
+  }
+
+
+  setStatusLED(status) {
     this.status = status;
 
     // Set the status LED
     switch (status) {
-      case 'IDLE':
-        this.devices.statusLED.setRGBValue(0, 255, 0);
+      case constants.WORKSTATION_STATUS_IDLE:
+        this.devices.setLEDMode(constants.LED_STATUS, constants.LED_GREEN);
         break;
-      case 'BUSY':
-        this.devices.statusLED.setRGBValue(255, 255, 0);
+      case constants.WORKSTATION_STATUS_BUSY:
+        this.devices.setLEDMode(constants.LED_STATUS, constants.LED_BLINKING_SLOW_BLUE);
+        break;
+      case constants.WORKSTATION_STATUS_FAILED:
+        this.devices.setLEDMode(constants.LED_STATUS, constants.LED_BLINKING_FAST_RED);
+        break;
+      case constants.WORKSTATION_STATUS_SETUP:
+        this.devices.setLEDMode(constants.LED_STATUS, constants.LED_BLINKING_NORMAL_YELLOW);
         break;
       default:
     }
   }
 
-  /* Called when the workstation receives a new item */
-  receciveItem(item) {
-    log("Received item: " + item);
-    this.validateItem(item);
+  setActionLED(action) {
+    // Set the action LED
+    switch (action) {
+      case constants.ACTION_NONE:
+        this.devices.setLEDMode(constants.LED_ACTION, constants.LED_OFF);
+        break;
+      case constants.ACTION_MEASURE:
+        this.devices.setLEDMode(constants.LED_ACTION, constants.LED_BLINKING_FAST_GREEN);
+        break;
+      case constants.ACTION_SETUP:
+        this.devices.setLEDMode(constants.LED_ACTION, constants.LED_BLINKING_FAST_YELLOW);
+        break;
+      default:
+        log("Error: Invalid action: " + action, "error");
+    }
 
   }
 
-  /* Check if weight and color match the item infos */
-  validateItem(item) {
-
-  }
 
   canReceiveItem() {
     return this.inputQueue.length < this.maxLengthInputQueue;

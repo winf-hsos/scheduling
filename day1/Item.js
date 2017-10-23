@@ -17,7 +17,7 @@ class Item {
   }
 
   toString() {
-    return "Item " + this.id + " of type >" + this.type + "<";
+    return "Item " + this.id + " of type >" + (this.type ? this.type : "Unknown") + "<";
   }
 
 }

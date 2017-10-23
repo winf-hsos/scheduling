@@ -18,7 +18,7 @@ class WorkstationDevices {
     this.piezoSpeaker = {};
     this.dualButton = {};
     this.loadCell = {};
-    this.color = {};
+    this.colorSensor = {};
     this.oled = {};
 
     // LED fields
@@ -33,6 +33,11 @@ class WorkstationDevices {
 
     // Sensor values
     this.weight = 0;
+    this.color = {};
+    this.colorText = "";
+
+    // Listener
+    this.weightListeners = [];
   }
 
   setup() {
@@ -94,18 +99,48 @@ class WorkstationDevices {
               device.on(tinkerforge.BrickletLoadCell.CALLBACK_WEIGHT, function(weight) {
                 _this.weight = weight;
                 _this.updateDisplay();
+                _this.weightListeners.forEach(function(listener) {
+                  listener(weight);
+                });
+              });
+              device.getWeight(function(weight) {
+                _this.weight = weight;
               });
               _this.loadCell = device;
               break;
             case 230:
               deviceName = "Dual Button Bricklet";
               device = new tinkerforge.BrickletDualButton(uid, _this.ipcon);
+              device.on(tinkerforge.BrickletDualButton.CALLBACK_STATE_CHANGED,
+                function(buttonL, buttonR, ledL, ledR) {
+                  if (buttonL === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
+                    console.log('Left button pressed');
+                  } else {
+                    console.log('Left button Released');
+                  }
+                  if (buttonR === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
+                    console.log('Right button pressed');
+                  } else {
+                    console.log('Right button Released');
+                  }
+                  console.log();
+                }
+              );
               _this.dualButton = device;
               break;
             case 243:
               deviceName = "Color Bricklet";
               device = new tinkerforge.BrickletColor(uid, _this.ipcon);
-              _this.color = device;
+              device.setColorCallbackPeriod(500);
+              device.lightOn();
+              device.on(tinkerforge.BrickletColor.CALLBACK_COLOR, function(r, g, b, c) {
+                _this.color.r = r;
+                _this.color.g = g;
+                _this.color.b = b;
+                _this.color.c = c;
+                _this.updateDisplay();
+              });
+              _this.colorSensor = device;
               break;
             case 263:
               deviceName = "OLED 128x64 Bricklet";
@@ -127,23 +162,45 @@ class WorkstationDevices {
     });
   }
 
-  // Explictly get the weight currently on the load cell
-  getWeight() {
-    this.loadCell.getWeight(
-      function(weight) {
-        return weight;
-      },
-      function(error) {
-        log('Error: ' + error, "error");
-      }
-    );
+  resetButtonLEDs() {
+    this.dualButton.setLEDState(constants.BUTTON_LED_OFF, constants.BUTTON_LED_OFF);
   }
 
-  weightCallback(weight) {
-    log("Current weight: " + weight, "debug");
-    this.weight = weight;
-    //this.updateDisplay();
+  // Set the Button LEDs
+  setButtonLED(button, what) {
+    var _this = this;
+    this.dualButton.getLEDState(function(stateLeft, stateRight) {
+
+      console.log("Left: " + stateLeft + ", Right: " + stateRight);
+
+      if (button == constants.BUTTON_LEFT) {
+        log("Left: " + what);
+        _this.dualButton.setLEDState(what, stateRight);
+
+      } else if (button == constants.BUTTON_RIGHT) {
+        log("Right: " + what);
+        _this.dualButton.setLEDState(stateLeft, what);
+      }
+
+    });
   }
+
+  extractColorFromRGB() {
+    if ((this.color.r > this.color.g) && (this.color.r > this.color.b))
+      this.colorText = constants.COLOR_RED;
+    if ((this.color.g > this.color.r) && (this.color.g > this.color.b))
+      this.colorText = constants.COLOR_GREEN;
+    if ((this.color.b > this.color.g) && (this.color.b > this.color.r))
+      this.colorText = constants.COLOR_BLUE;
+
+    return this.colorText;
+  }
+
+  registerWeightListener(callback) {
+    this.weightListeners.push(callback);
+  }
+
+
 
   /* Set the display to show the necessary information */
   updateDisplay() {
@@ -151,6 +208,7 @@ class WorkstationDevices {
     this.oled.writeLine(1, 0, fillLine('Status: ' + this.workstation.status));
     this.oled.writeLine(2, 0, fillLine('Queue: ' + this.workstation.queue.length));
     this.oled.writeLine(3, 0, fillLine('Scale: ' + this.weight + " g"));
+    this.oled.writeLine(4, 0, fillLine('Color: ' + (this.weight <= 0 ? "-" : this.extractColorFromRGB())));
 
     function fillLine(value) {
       var result = value;
@@ -179,11 +237,8 @@ class WorkstationDevices {
       case constants.BUZZER_FAST:
         setBuzzerMode(this.piezoSpeaker, constants.FREQ_MS_FAST);
         break;
-
-
-
       default:
-        log("Error: Invalid LED mode or mode not implemented: " + mode, "error");
+        log("Error: Invalid buzzer mode or mode not implemented: " + mode, "error");
     }
 
     function setBuzzerMode(buzzerObject, frequency) {
@@ -194,13 +249,9 @@ class WorkstationDevices {
         buzzerCycle = buzzerCycle == constants.BUZZER_CYCLE_ON ? constants.BUZZER_CYCLE_OFF : constants.BUZZER_CYCLE_ON;
       }, frequency);
     }
-
-
-
   }
 
   setLEDMode(led, mode) {
-
     // Depending on which led, get the right variables
     var ledObj = (led === constants.LED_STATUS ? this.statusLED : this.actionLED);
     var ledInterval = (led === constants.LED_STATUS ? this.statusLEDInterval : this.actionLEDInterval);
@@ -222,13 +273,19 @@ class WorkstationDevices {
       case constants.LED_BLINKING_FAST_RED:
         setBlinkingMode(ledObj, 255, 0, 0, constants.FREQ_MS_FAST);
         break;
-
+      case constants.LED_BLINKING_FAST_GREEN:
+        setBlinkingMode(ledObj, 0, 255, 0, constants.FREQ_MS_FAST);
+        break;
+      case constants.LED_BLINKING_FAST_YELLOW:
+        setBlinkingMode(ledObj, 255, 255, 0, constants.FREQ_MS_FAST);
+        break;
       default:
         log("Error: Invalid LED mode or mode not implemented: " + mode, "error");
     }
 
     function setBlinkingMode(ledObj, r, g, b, frequency) {
       clearInterval(ledInterval);
+      ledObj.setRGBValue(0, 0, 0);
       ledInterval = setInterval(() => {
         if (ledBlinkingCycle == constants.LED_BLINKING_CYCLE_ON)
           ledObj.setRGBValue(0, 0, 0);
@@ -239,9 +296,6 @@ class WorkstationDevices {
     }
 
   }
-
-  clearLeftLED() {}
-
 
   beepAndBlinkNTimes(frequency, r, g, b, beepLength, breakLength, n) {
     var _this = this;
