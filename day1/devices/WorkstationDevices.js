@@ -272,6 +272,8 @@ class WorkstationDevices {
         log("Error: Invalid buzzer mode or mode not implemented: " + mode, "error");
     }
 
+    this.piezoSpeakerInterval = buzzerInterval;
+
     function setMode(buzzerObject, duration, frequency = 4000) {
       clearInterval(buzzerInterval);
       buzzerInterval = setInterval(() => {

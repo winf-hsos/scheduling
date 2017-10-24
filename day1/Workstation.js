@@ -15,6 +15,7 @@ class Workstation {
 
     this.processingQueue = [];
     this.currentProcessingItem = [];
+    this.processingTimespan = {};
 
     this.arrivalQueue = [];
     this.currentArrivalItem = [];
@@ -83,9 +84,18 @@ class Workstation {
     }
 
     if (_this.action == constants.ACTION_MEASURE_REMOVE_ITEM) {
-      _this.devices.singleBeep(250, 4000);
-      _this.queueCurrentArrivalItem();
+      if (weight == 0) {
+        _this.devices.singleBeep(250, 4000);
+        _this.queueCurrentArrivalItem();
+      }
     }
+
+    if (_this.action == constants.ACTION_WAIT && _this.status == constants.WORKSTATION_STATUS_PROCESSING) {
+        log("Do not remove item while processing", "error");
+    }
+
+
+
   }
 
   leftButtonPressedHandler(_this) {
@@ -105,7 +115,6 @@ class Workstation {
 
   }
 
-
   setStatus(status) {
     this.status = status;
 
@@ -113,6 +122,7 @@ class Workstation {
     switch (status) {
       case constants.WORKSTATION_STATUS_IDLE:
         this.devices.setLEDMode(constants.LED_STATUS, constants.LED_GREEN);
+        this.devices.setBuzzerMode(constants.BUZZER_OFF);
         break;
       case constants.WORKSTATION_STATUS_PROCESSING:
         this.devices.setLEDMode(constants.LED_STATUS, constants.LED_BLINKING_SLOW_BLUE);
@@ -205,11 +215,31 @@ class Workstation {
       this.arrivalQueue.push(item);
   }
 
-  finishedProcessing() {}
+  finishedProcessing() {
+    log("Finished processing item: " + this.currentProcessingItem, "success");
+
+    this.devices.beepNTimes(3000, 75, 75, 3);
+
+    // Any neew arrivals?
+    if (this.arrivalQueue.length > 0) {
+
+    } else if (this.processingQueue.length > 0) {
+
+    } else {
+      this.setStatus(constants.WORKSTATION_STATUS_IDLE);
+    }
+  }
 
   processItem() {
-    this.setAction(constants.ACTION_NONE);
+    this.setAction(constants.ACTION_WAIT);
+    var processingTimeSeconds = 10;
     log("Process item: " + this.currentProcessingItem);
+
+    var _this = this;
+    this.processingTimespan = setTimeout(function() {
+      _this.finishedProcessing();
+    }, processingTimeSeconds * 1000);
+
   }
 
   releaseItem(item) {}
