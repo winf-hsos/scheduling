@@ -9,10 +9,12 @@ var {
   Item
 } = require('./Item.js');
 
+var itemId = 1;
+
 /* Creates a new workstation. The first parameter is the ID,
  *  the second gives the workstation a name.
  */
-var w = new Workstation(1, "Station A");
+var w = new Workstation(1, "A");
 w.initialize().then(testWorksation); //.catch(err => console.log("Error in test function: " + err));;
 
 
@@ -24,13 +26,22 @@ function testWorksation() {
   log(w);
 
   /* Simulate the arrival of a new item */
-  var item = new Item(1);
-  w.arriveItem(item);
+  immediateArrival(w);
 
-  /*
-    var item2 = new Item(2);
-    w.arriveItem(item2);
-    */
+  // Schedule arrivals in the future
+  scheduleArrival(w, 15);
+  scheduleArrival(w, 25);
 
+}
 
+function immediateArrival(workstation) {
+  var item = new Item(itemId++);
+  workstation.arriveItem(item);
+}
+
+function scheduleArrival(workstation, inSeconds) {
+  setTimeout(function() {
+    var item = new Item(itemId++);
+    workstation.arriveItem(item);
+  }, inSeconds * 1000);
 }
