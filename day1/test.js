@@ -13,7 +13,7 @@ var {
  *  the second gives the workstation a name.
  */
 var w = new Workstation(1, "Station A");
-w.initialize().then(testWorksation).catch(err => console.log("Error in test function: " + err));;
+w.initialize().then(testWorksation); //.catch(err => console.log("Error in test function: " + err));;
 
 
 /* Write your test code here */
@@ -25,8 +25,12 @@ function testWorksation() {
 
   /* Simulate the arrival of a new item */
   var item = new Item(1);
-  w.receiveItem(item);
+  w.arriveItem(item);
 
+  /*
+    var item2 = new Item(2);
+    w.arriveItem(item2);
+    */
 
 
 }

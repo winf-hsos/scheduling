@@ -7,8 +7,8 @@ class Item {
   }
 
   /* Set the type (color) of this item */
-  setType(type) {
-    this.type = type;
+  setColor(color) {
+    this.color = color;
   }
 
   /* Sets the weight in grams */
@@ -17,7 +17,7 @@ class Item {
   }
 
   toString() {
-    return "Item " + this.id + " of type >" + (this.type ? this.type : "Unknown") + "<";
+    return "Item " + this.id + " of color >" + (this.color ? this.color : "Not set") + "< and weight >" + this.weight + "<";
   }
 
 }

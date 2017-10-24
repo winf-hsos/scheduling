@@ -37,7 +37,8 @@ class WorkstationDevices {
     this.colorText = "";
 
     // Listener
-    this.weightListeners = [];
+    this.weightChangeListeners = [];
+    this.leftButtonPressedListeners = [];
   }
 
   setup() {
@@ -99,8 +100,8 @@ class WorkstationDevices {
               device.on(tinkerforge.BrickletLoadCell.CALLBACK_WEIGHT, function(weight) {
                 _this.weight = weight;
                 _this.updateDisplay();
-                _this.weightListeners.forEach(function(listener) {
-                  listener(weight);
+                _this.weightChangeListeners.forEach(function(listener) {
+                  listener.callback(weight, listener.workstation);
                 });
               });
               device.getWeight(function(weight) {
@@ -114,9 +115,11 @@ class WorkstationDevices {
               device.on(tinkerforge.BrickletDualButton.CALLBACK_STATE_CHANGED,
                 function(buttonL, buttonR, ledL, ledR) {
                   if (buttonL === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
-                    console.log('Left button pressed');
+
                   } else {
-                    console.log('Left button Released');
+                    _this.leftButtonPressedListeners.forEach(function(listener) {
+                      listener.callback(listener.workstation);
+                    });
                   }
                   if (buttonR === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
                     console.log('Right button pressed');
@@ -196,8 +199,20 @@ class WorkstationDevices {
     return this.colorText;
   }
 
-  registerWeightListener(callback) {
-    this.weightListeners.push(callback);
+  registerWeightListener(callback, workstation) {
+    var listener = {
+      "callback": callback,
+      "workstation": workstation
+    };
+    this.weightChangeListeners.push(listener);
+  }
+
+  registerLeftButtonPressedListener(callback, workstation) {
+    var listener = {
+      "callback": callback,
+      "workstation": workstation
+    };
+    this.leftButtonPressedListeners.push(listener);
   }
 
 
@@ -206,9 +221,22 @@ class WorkstationDevices {
   updateDisplay() {
     this.oled.writeLine(0, 0, fillLine('Workstation ID: ' + this.workstation.id));
     this.oled.writeLine(1, 0, fillLine('Status: ' + this.workstation.status));
-    this.oled.writeLine(2, 0, fillLine('Queue: ' + this.workstation.queue.length));
-    this.oled.writeLine(3, 0, fillLine('Scale: ' + this.weight + " g"));
-    this.oled.writeLine(4, 0, fillLine('Color: ' + (this.weight <= 0 ? "-" : this.extractColorFromRGB())));
+    this.oled.writeLine(2, 0, fillLine('Action: ' + this.workstation.action));
+    this.oled.writeLine(3, 0, fillLine('Processing Queue: ' + this.workstation.processingQueue.length));
+    this.oled.writeLine(4, 0, fillLine('Arrival Queue: ' + this.workstation.arrivalQueue.length));
+    this.oled.writeLine(5, 0, fillLine('Scale: ' + this.weight + " g"));
+    this.oled.writeLine(6, 0, fillLine('Color: ' + (this.weight <= 0 ? "-" : this.extractColorFromRGB())));
+
+    if (this.workstation.action == constants.ACTION_MEASURE_WAIT_CONFIRMATION) {
+      this.oled.writeLine(7, 0, fillLine('Please confirm item...'));
+    } else if (this.workstation.action == constants.ACTION_MEASURE) {
+      this.oled.writeLine(7, 0, fillLine('Place item on scale...'));
+    } else if (this.workstation.action == constants.ACTION_MEASURE_REMOVE_ITEM) {
+      this.oled.writeLine(7, 0, fillLine('Remove item from scale...'));
+    } else
+      this.oled.writeLine(7, 0, fillLine(''));
+
+
 
     function fillLine(value) {
       var result = value;
@@ -219,7 +247,7 @@ class WorkstationDevices {
     }
   }
 
-  setBeepMode(mode) {
+  setBuzzerMode(mode) {
     var buzzerInterval = this.piezoSpeakerInterval;
     var buzzerCycle = this.piezoSpeakerCycle;
 
@@ -229,23 +257,26 @@ class WorkstationDevices {
       case constants.BUZZER_OFF:
         break;
       case constants.BUZZER_SLOW:
-        setBuzzerMode(this.piezoSpeaker, constants.FREQ_MS_SLOW);
+        setMode(this.piezoSpeaker, constants.FREQ_MS_SLOW);
         break;
       case constants.BUZZER_NORMAL:
-        setBuzzerMode(this.piezoSpeaker, constants.FREQ_MS_NORMAL);
+        setMode(this.piezoSpeaker, constants.FREQ_MS_NORMAL);
         break;
       case constants.BUZZER_FAST:
-        setBuzzerMode(this.piezoSpeaker, constants.FREQ_MS_FAST);
+        setMode(this.piezoSpeaker, constants.FREQ_MS_FAST);
         break;
+      case constants.BUZZER_SLOW_LOW:
+          setMode(this.piezoSpeaker, constants.FREQ_MS_FAST, 585);
+          break;
       default:
         log("Error: Invalid buzzer mode or mode not implemented: " + mode, "error");
     }
 
-    function setBuzzerMode(buzzerObject, frequency) {
+    function setMode(buzzerObject, duration, frequency = 4000) {
       clearInterval(buzzerInterval);
       buzzerInterval = setInterval(() => {
         if (buzzerCycle == constants.BUZZER_CYCLE_OFF)
-          buzzerObject.beep(frequency, 4000);
+          buzzerObject.beep(duration, frequency);
         buzzerCycle = buzzerCycle == constants.BUZZER_CYCLE_ON ? constants.BUZZER_CYCLE_OFF : constants.BUZZER_CYCLE_ON;
       }, frequency);
     }
@@ -257,12 +288,18 @@ class WorkstationDevices {
     var ledInterval = (led === constants.LED_STATUS ? this.statusLEDInterval : this.actionLEDInterval);
     var ledBlinkingCycle = (led === constants.LED_STATUS ? this.statusLEDCycle : this.actionLEDCycle);
 
+    clearInterval(ledInterval);
+    ledObj.setRGBValue(0, 0, 0);
+
     switch (mode) {
       case constants.LED_OFF:
         ledObj.setRGBValue(0, 0, 0);
         break;
       case constants.LED_GREEN:
         ledObj.setRGBValue(0, 255, 0);
+        break;
+      case constants.LED_WHITE:
+        ledObj.setRGBValue(255, 255, 255);
         break;
       case constants.LED_BLINKING_SLOW_BLUE:
         setBlinkingMode(ledObj, 0, 0, 255, constants.FREQ_MS_SLOW);
@@ -279,12 +316,21 @@ class WorkstationDevices {
       case constants.LED_BLINKING_FAST_YELLOW:
         setBlinkingMode(ledObj, 255, 255, 0, constants.FREQ_MS_FAST);
         break;
+      case constants.LED_BLINKING_FAST_WHITE:
+        setBlinkingMode(ledObj, 255, 255, 255, constants.FREQ_MS_FAST);
+        break;
       default:
         log("Error: Invalid LED mode or mode not implemented: " + mode, "error");
     }
 
+    // Save the interval timer
+    if (led === constants.LED_STATUS)
+      this.statusLEDInterval = ledInterval;
+    if (led === constants.LED_ACTION)
+      this.actionLEDInterval = ledInterval;
+
     function setBlinkingMode(ledObj, r, g, b, frequency) {
-      clearInterval(ledInterval);
+
       ledObj.setRGBValue(0, 0, 0);
       ledInterval = setInterval(() => {
         if (ledBlinkingCycle == constants.LED_BLINKING_CYCLE_ON)
@@ -293,6 +339,7 @@ class WorkstationDevices {
           ledObj.setRGBValue(r, g, b);
         ledBlinkingCycle = ledBlinkingCycle == constants.LED_BLINKING_CYCLE_ON ? constants.LED_BLINKING_CYCLE_OFF : constants.LED_BLINKING_CYCLE_ON;
       }, frequency);
+
     }
 
   }
