@@ -36,6 +36,12 @@ function log(message, type = "info") {
   if (type == "idle") {
     console.log(chalk.bgGreen(timeSinceStart() + ": " + message));
   }
+
+  if (type == "exercise") {
+    console.log(chalk.bgRed(timeSinceStart() + ": " + message));
+  }
+
+
 }
 
 // Helper function to give time to enumerate

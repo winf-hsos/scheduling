@@ -58,8 +58,10 @@ class Workstation {
       if (this.status == constants.WORKSTATION_STATUS_IDLE && this.arrivalQueue.length == 0) {
         this.currentArrivalItem = item;
         this.handleArrival(constants.STEP_ARRIVAL_MEASURE_ITEM);
-      } else
-        this.arrivalQueue.push(item);
+      } else {
+        /* TODO: Implement adding the item to the arrival queue */
+        log("WARNING: Missing implementation for adding arrival items to queue!", "exercise");
+      }
       return;
     }
 
@@ -101,9 +103,14 @@ class Workstation {
 
   /* Simple FIFO Queue */
   selectNextArrivalItem() {
-    if (this.arrivalQueue.length > 0) {
-      return this.arrivalQueue.shift();
-    }
+    /* TODO: Implement this function such that it reflects
+     * a FIFO queue
+     *
+     * HINT 1: The queue is a field of the Workstation
+     *
+     * HINT 2: Look at the type of the field */
+    log("WARNING: Missing implementation for selecting next item from arrival queue.", "exercise");
+    return null;
   }
 
   putItemOnScale(expectedItem) {
@@ -153,10 +160,19 @@ class Workstation {
 
   saveItemMeasurements() {
     // Save the color and weight
-    this.currentArrivalItem.setColor(this.wdm.colorText);
-    this.currentArrivalItem.setWeight(this.wdm.weight);
 
-    log("Measured and saved: " + this.currentArrivalItem, "arrival")
+    /* TODO: Implement saving the color and weight for the
+     * measured item.
+     *
+     * HINT 1: the current arrival item is stored
+     * in the variable this.currentArrivalItem.
+     *
+     * HINT 2: The current color and weight can be retrieved
+     * from the WorkstationDeviceManager object */
+
+    log("WARNING: Missing implementation for saving color and weight for the measured item.", "exercise");
+
+    // log("Measured and saved: " + this.currentArrivalItem, "arrival")
   }
 
   putArrivalInProcessingQueue() {
@@ -228,8 +244,16 @@ class Workstation {
     this.wdm.setAction(constants.ACTION_WAIT);
     log("Processing " + this.currentProcessingItem, "processing");
 
-    // Calculate the processing time based on weight
-    this.processingTime = this.currentProcessingItem.weight * constants.PROCESSING_TIME_PER_GRAM;
+    /* TODO: Complete the statement below to calculate the
+     *  processing time based on the weight of the item
+     *
+     *  HINT: Look in the constants.js for a hint
+     *
+     *  // Calculate the processing time based on weight
+     *  //this.processingTime = ...
+     */
+    log("WARNING: Missing implementation for calculating the processing time.");
+
     this.processingStartTime = new Date();
 
     var _this = this;
@@ -242,18 +266,30 @@ class Workstation {
   finishProcessing() {
     log("Finished processing item: " + this.currentProcessingItem, "processing");
 
-    // Any new arrivals?
-    if (this.arrivalQueue.length > 0) {
-      this.handleArrival(constants.STEP_ARRIVAL_NEXT_FROM_QUEUE);
-    }
+    /* TODO: Implement IF-statement to check whether there
+     * are any items in the arrival queue.
+     *
+     * // Any new arrivals?
+     * if (...) {
+     *   this.handleArrival(constants.STEP_ARRIVAL_NEXT_FROM_QUEUE);
+     * }
+     */
+    log("WARNING: Missing implementation to check if there are any arrivals after processing finished.", "exercise");
+
     // If no arrivals, any items to process?
     else if (this.processingQueue.length > 0) {
       this.handleProcessing(constants.STEP_PROCESSING_CHECK_SETUP);
 
     } else {
-      log("No more work to do... ", "idle");
-      this.wdm.setStatus(constants.WORKSTATION_STATUS_IDLE);
-      this.wdm.setAction(constants.ACTION_NONE);
+
+      /* TODO: Implement the logic to set the workstation into
+       * IDLE and no action.
+       *
+       * HINT: The require functions are handled by the WorkstationDeviceManager
+       *
+       * log("No more work to do... ", "idle");
+       */
+      log("WARNING: Missing implementation to set the workstation into IDLE status.", "exercise");
     }
   }
 
@@ -312,7 +348,14 @@ class Workstation {
   }
 
   calculateSetupTime(toColor) {
-    return 10;
+    /* TODO: Calculate the processing time using the following rules
+     *
+     * From BLUE to GREEN (and vice versa): 10 seconds
+     * FROM BLUE to RED (and vice versa): 15 seconds
+     * FROM GREEN to RED: 20 seconds
+     * FROM RED to GREEN: 10 seconds
+     */
+    log("WARNING: Missing implementation to calculate setup time!");
   }
 
   /**** FUNCTIONS FOR RELEASE PROCESS ****/
