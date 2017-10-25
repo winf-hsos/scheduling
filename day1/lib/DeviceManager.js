@@ -1,18 +1,16 @@
-var log = require('../../lib/helper.js').log;
-var delay = require('../../lib/helper.js').delay;
-var timeInSecondsSince = require('../../lib/helper.js').timeInSecondsSince;
-var timeInSecondsSinceStart = require('../../lib/helper.js').timeInSecondsSinceStart;
+var log = require('./helper.js').log;
+var delay = require('./helper.js').delay;
+var timeInSecondsSince = require('./helper.js').timeInSecondsSince;
+var timeInSecondsSinceStart = require('./helper.js').timeInSecondsSinceStart;
 var constants = require('./constants.js');
 var tinkerforge = require('tinkerforge');
 
+class DeviceManager {
 
-class WorkstationDevices {
-
-  constructor(workstation, host = 'localhost', port = 4223) {
+  constructor(host = 'localhost', port = 4223) {
     this.host = host;
     this.port = port;
     this.ipcon = {};
-    this.workstation = workstation;
 
     // The eletronic devices
     this.statusLED = {};
@@ -36,11 +34,29 @@ class WorkstationDevices {
     // Sensor values
     this.weight = 0;
     this.color = {};
-    this.colorText = "";
 
-    // Listener
+    // Listeners
     this.weightChangeListeners = [];
+    this.colorChangeListeners = [];
     this.leftButtonPressedListeners = [];
+    this.rightButtonPressedListeners = [];
+
+  }
+
+  registerWeightListener(callback) {
+    this.weightChangeListeners.push(callback);
+  }
+
+  registerColorListener(callback) {
+    this.colorChangeListeners.push(callback);
+  }
+
+  registerLeftButtonPressedListener(callback) {
+    this.leftButtonPressedListeners.push(callback);
+  }
+
+  registerRightButtonPressedListener(callback) {
+    this.rightButtonPressedListeners.push(callback);
   }
 
   setup() {
@@ -57,11 +73,10 @@ class WorkstationDevices {
           log("Successfully connected to Master Brick on " + _this.host, "success");
 
           // Trigger Enumerate
-          log("Connecting to devices...");
           _this.ipcon.enumerate();
 
+          // Wait one second for all devices to connect
           delay(1000).then(() => {
-            log("Waited 1 second");
             resolve(_this);
           });
 
@@ -102,13 +117,10 @@ class WorkstationDevices {
               device.tare();
               device.on(tinkerforge.BrickletLoadCell.CALLBACK_WEIGHT, function(weight) {
                 _this.weight = weight;
-                _this.updateDisplay();
-                _this.weightChangeListeners.forEach(function(listener) {
-                  listener.callback(weight, listener.workstation);
+                // Call the listeners about the update
+                _this.weightChangeListeners.forEach(function(callback) {
+                  callback(weight);
                 });
-              });
-              device.getWeight(function(weight) {
-                _this.weight = weight;
               });
               _this.loadCell = device;
               break;
@@ -118,11 +130,15 @@ class WorkstationDevices {
               device.on(tinkerforge.BrickletDualButton.CALLBACK_STATE_CHANGED,
                 function(buttonL, buttonR, ledL, ledR) {
                   if (buttonL === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {} else {
-                    _this.leftButtonPressedListeners.forEach(function(listener) {
-                      listener.callback(listener.workstation);
+                    _this.leftButtonPressedListeners.forEach(function(callback) {
+                      callback();
                     });
                   }
-                  if (buttonR === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {} else {}
+                  if (buttonR === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {} else {
+                    _this.rightButtonPressedListeners.forEach(function(callback) {
+                      callback();
+                    });
+                  }
                 }
               );
               _this.dualButton = device;
@@ -133,11 +149,15 @@ class WorkstationDevices {
               device.setColorCallbackPeriod(500);
               device.lightOn();
               device.on(tinkerforge.BrickletColor.CALLBACK_COLOR, function(r, g, b, c) {
+
                 _this.color.r = r;
                 _this.color.g = g;
                 _this.color.b = b;
                 _this.color.c = c;
-                _this.updateDisplay();
+
+                _this.colorChangeListeners.forEach(function(callback) {
+                  callback(_this.color);
+                });
               });
               _this.colorSensor = device;
               break;
@@ -161,9 +181,21 @@ class WorkstationDevices {
     });
   }
 
-  resetButtonLEDs() {
-    this.dualButton.setLEDState(constants.BUTTON_LED_OFF, constants.BUTTON_LED_OFF);
+  resetLEDs() {
+    this.setLEDMode(constants.LED_ACTION, constants.LED_OFF);
+    this.setLEDMode(constants.LED_STATUS, constants.LED_OFF);
   }
+
+  resetDisplay() {
+    this.oled.clearDisplay();
+  }
+
+  resetButtonLEDs() {
+    log("Reset button LEDs", "debug");
+    this.setButtonLED(constants.BUTTON_LEFT, constants.BUTTON_LED_OFF);
+    this.setButtonLED(constants.BUTTON_RIGHT, constants.BUTTON_LED_OFF);
+  }
+
 
   // Set the Button LEDs
   setButtonLED(button, what) {
@@ -178,71 +210,6 @@ class WorkstationDevices {
       }
 
     });
-  }
-
-  extractColorFromRGB() {
-    if ((this.color.r > this.color.g) && (this.color.r > this.color.b))
-      this.colorText = constants.COLOR_RED;
-    if ((this.color.g > this.color.r) && (this.color.g > this.color.b))
-      this.colorText = constants.COLOR_GREEN;
-    if ((this.color.b > this.color.g) && (this.color.b > this.color.r))
-      this.colorText = constants.COLOR_BLUE;
-
-    return this.colorText;
-  }
-
-  registerWeightListener(callback, workstation) {
-    var listener = {
-      "callback": callback,
-      "workstation": workstation
-    };
-    this.weightChangeListeners.push(listener);
-  }
-
-  registerLeftButtonPressedListener(callback, workstation) {
-    var listener = {
-      "callback": callback,
-      "workstation": workstation
-    };
-    this.leftButtonPressedListeners.push(listener);
-  }
-
-  /* Set the display to show the necessary information */
-  updateDisplay() {
-    this.oled.writeLine(0, 0, fillLine('Workstation ID: ' + this.workstation.id));
-
-    if (this.workstation.status == constants.WORKSTATION_STATUS_PROCESSING && this.workstation.action == constants.ACTION_WAIT) {
-      this.oled.writeLine(1, 0, fillLine('Status: ' + this.workstation.status + " (" + Math.round(timeInSecondsSince(this.workstation.processingStartTime) / this.workstation.processingTime * 100) + "%)"));
-    } else if (this.workstation.status == constants.WORKSTATION_STATUS_SETUP && this.workstation.action == constants.ACTION_WAIT) {
-      this.oled.writeLine(1, 0, fillLine('Status: ' + this.workstation.status + " (" + Math.round(timeInSecondsSince(this.workstation.setupStartTime) / this.workstation.setupTime * 100) + "%)"));
-    } else
-      this.oled.writeLine(1, 0, fillLine('Status: ' + this.workstation.status));
-
-    this.oled.writeLine(2, 0, fillLine('Action: ' + this.workstation.action));
-    this.oled.writeLine(3, 0, fillLine('Processing Queue: ' + this.workstation.processingQueue.length));
-    this.oled.writeLine(4, 0, fillLine('Arrival Queue: ' + this.workstation.arrivalQueue.length));
-    this.oled.writeLine(5, 0, fillLine('Scale: ' + this.weight + " g"));
-    this.oled.writeLine(6, 0, fillLine('Color: ' + (this.weight <= 0 ? "-" : this.extractColorFromRGB())));
-
-    if (this.workstation.action == constants.ACTION_CONFIRM && this.workstation.status == constants.WORKSTATION_STATUS_ARRIVAL) {
-      this.oled.writeLine(7, 0, fillLine('Please confirm item...'));
-    } else if (this.workstation.action == constants.ACTION_CONFIRM && this.workstation.status == constants.WORKSTATION_STATUS_SETUP) {
-      this.oled.writeLine(7, 0, fillLine('Press to start setup...'));
-    } else if (this.workstation.action == constants.ACTION_PLACE_ITEM) {
-      this.oled.writeLine(7, 0, fillLine('Place item on scale...'));
-    } else if (this.workstation.action == constants.ACTION_REMOVE_ITEM) {
-      this.oled.writeLine(7, 0, fillLine('Remove item from scale...'));
-    } else
-      this.oled.writeLine(7, 0, fillLine(''));
-
-
-    function fillLine(value) {
-      var result = value;
-      for (var i = value.length; i <= 26; i++) {
-        result += " ";
-      }
-      return result;
-    }
   }
 
   setBuzzerMode(mode, frequency = 4000) {
@@ -263,7 +230,7 @@ class WorkstationDevices {
       case constants.BUZZER_FAST:
         setMode(this.piezoSpeaker, constants.FREQ_MS_FAST, frequency);
         break;
-      case constants.BUZZER_SLOW_LOW:
+      case constants.BUZZER_SLOW:
         setMode(this.piezoSpeaker, constants.FREQ_MS_FAST, frequency);
         break;
       default:
@@ -390,4 +357,4 @@ class WorkstationDevices {
     this.piezoSpeaker.beep(duration, frequency);
   }
 }
-exports.WorkstationDevices = WorkstationDevices;
+exports.DeviceManager = DeviceManager;

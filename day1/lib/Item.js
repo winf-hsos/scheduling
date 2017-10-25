@@ -1,4 +1,4 @@
-var log = require('../lib/helper.js').log;
+var log = require('./helper.js').log;
 
 class Item {
 
@@ -17,7 +17,7 @@ class Item {
   }
 
   toString() {
-    return "Item " + this.id + " of color >" + (this.color ? this.color : "Not set") + "< and weight >" + this.weight + "<";
+    return "Item " + this.id + " (color: " + (this.color ? this.color : "-") + " / weight: " + (this.weight ? this.weight : "-") + ")";
   }
 
 }

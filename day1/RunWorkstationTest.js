@@ -1,13 +1,13 @@
 /* This section defines what external file / libraries
  * we need for our program.
  */
-var log = require('../lib/helper.js').log;
+var log = require('./lib/helper.js').log;
 var {
   Workstation
-} = require('./Workstation.js');
+} = require('./lib/Workstation.js');
 var {
   Item
-} = require('./Item.js');
+} = require('./lib/Item.js');
 
 var itemId = 1;
 
@@ -20,10 +20,8 @@ w.initialize().then(testWorksation); //.catch(err => console.log("Error in test 
 
 /* Write your test code here */
 function testWorksation() {
-  log("Test started for:");
+  log("Test started for: " + w, "info");
 
-  /* Print info about the workstation */
-  log(w);
 
   /* Simulate the arrival of a new item */
   immediateArrival(w);
