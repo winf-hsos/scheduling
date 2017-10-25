@@ -266,7 +266,7 @@ class Workstation {
   finishProcessing() {
     log("Finished processing item: " + this.currentProcessingItem, "processing");
 
-    /* TODO: Implement IF-statement to check whether there
+    /* TODO: Implement IF-statement below to check whether there
      * are any items in the arrival queue.
      *
      * // Any new arrivals?
@@ -276,6 +276,10 @@ class Workstation {
      */
     log("WARNING: Missing implementation to check if there are any arrivals after processing finished.", "exercise");
 
+    // Replace 1=1 with your implementation
+    if (1 == 1) {
+      this.handleArrival(constants.STEP_ARRIVAL_NEXT_FROM_QUEUE);
+    }
     // If no arrivals, any items to process?
     else if (this.processingQueue.length > 0) {
       this.handleProcessing(constants.STEP_PROCESSING_CHECK_SETUP);
@@ -355,7 +359,7 @@ class Workstation {
      * FROM GREEN to RED: 20 seconds
      * FROM RED to GREEN: 10 seconds
      */
-    log("WARNING: Missing implementation to calculate setup time!");
+    log("WARNING: Missing implementation to calculate setup time!", "exercise");
   }
 
   /**** FUNCTIONS FOR RELEASE PROCESS ****/
