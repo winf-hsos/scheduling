@@ -44,29 +44,66 @@ class Workstation {
     return this.wdm.initialize();
   }
 
+  // Exposed function to receive new arrivals
   arriveItem(item) {
     log(this + ": New item arrived: " + item, "arrival");
     this.wdm.newArrivalSignal();
     this.handleArrival(constants.STEP_ARRIVAL_CHECK_IMMEDIATE_HANDLING, item);
   }
 
-  /* Check if weight and color match the item infos */
-  measureItemOnScale() {
-    this.wdm.setAction(constants.ACTION_PLACE_ITEM);
+  /**** FUNCTIONS FOR ARRIVAL PROCESS ****/
+  handleArrival(step, item = null) {
+    // Check if this arrival can be handled immediately
+    if (step == constants.STEP_ARRIVAL_CHECK_IMMEDIATE_HANDLING) {
+      if (this.status == constants.WORKSTATION_STATUS_IDLE && this.arrivalQueue.length == 0) {
+        this.currentArrivalItem = item;
+        this.handleArrival(constants.STEP_ARRIVAL_MEASURE_ITEM);
+      } else
+        this.arrivalQueue.push(item);
+      return;
+    }
 
-    var colorText = this.wdm.colorText;
-    var weight = this.wdm.weight;
-    var _this = this;
+    // Get next item from arrival queue
+    if (step == constants.STEP_ARRIVAL_NEXT_FROM_QUEUE) {
+      this.currentArrivalItem = this.selectNextArrivalItem();
+      this.handleArrival(constants.STEP_ARRIVAL_MEASURE_ITEM);
+      return;
+    }
 
-    setTimeout(function() {
-      if ((_this.wdm.weight > 0) && (weight == _this.wdm.weight) && (_this.wdm.colorText != "") && (colorText == _this.wdm.colorText)) {
-        _this.handleArrival(constants.STEP_ARRIVAL_CONFIRM_MEASUREMENT, {
-          w: weight,
-          c: colorText
-        });
-        return;
-      } else return _this.measureItemOnScale();
-    }, 1000);
+    // Measure item on scale
+    if (step == constants.STEP_ARRIVAL_MEASURE_ITEM) {
+      this.wdm.setStatus(constants.WORKSTATION_STATUS_ARRIVAL);
+      log("Please put " + this.currentArrivalItem + " onto scale for measurement!", "arrival");
+      this.measureItemOnScale();
+      return;
+    }
+
+    // Confirm measurement
+    if (step == constants.STEP_ARRIVAL_CONFIRM_MEASUREMENT) {
+      log("Please confirm item measurement: Color: " + item.c + ", Weight: " + item.w, "arrival");
+      this.wdm.setAction(constants.ACTION_CONFIRM);
+      return;
+    }
+
+    // Save measurement
+    if (step == constants.STEP_ARRIVAL_SAVE_MEASUREMENT) {
+      this.saveItemMeasurements();
+      log("Please remove item from scale!", "arrival");
+      this.wdm.setAction(constants.ACTION_REMOVE_ITEM);
+      return;
+    }
+
+    if (step == constants.STEP_ARRIVAL_QUEUE) {
+      this.putArrivalInProcessingQueue();
+      return;
+    }
+  }
+
+  /* Simple FIFO Queue */
+  selectNextArrivalItem() {
+    if (this.arrivalQueue.length > 0) {
+      return this.arrivalQueue.shift();
+    }
   }
 
   putItemOnScale(expectedItem) {
@@ -95,6 +132,25 @@ class Workstation {
     }, 1000);
   }
 
+  /* Check if weight and color match the item infos */
+  measureItemOnScale() {
+    this.wdm.setAction(constants.ACTION_PLACE_ITEM);
+
+    var colorText = this.wdm.colorText;
+    var weight = this.wdm.weight;
+    var _this = this;
+
+    setTimeout(function() {
+      if ((_this.wdm.weight > 0) && (weight == _this.wdm.weight) && (_this.wdm.colorText != "") && (colorText == _this.wdm.colorText)) {
+        _this.handleArrival(constants.STEP_ARRIVAL_CONFIRM_MEASUREMENT, {
+          w: weight,
+          c: colorText
+        });
+        return;
+      } else return _this.measureItemOnScale();
+    }, 1000);
+  }
+
   saveItemMeasurements() {
     // Save the color and weight
     this.currentArrivalItem.setColor(this.wdm.colorText);
@@ -103,7 +159,7 @@ class Workstation {
     log("Measured and saved: " + this.currentArrivalItem, "arrival")
   }
 
-  queueCurrentArrivalItem() {
+  putArrivalInProcessingQueue() {
     log("Queueing item: " + this.currentArrivalItem + " at workstation " + this.name, "arrival");
     this.processingQueue.push(this.currentArrivalItem);
     this.currentArrivalItem = {};
@@ -118,82 +174,7 @@ class Workstation {
     }
   }
 
-  processItem() {
-    this.wdm.setAction(constants.ACTION_WAIT);
-    log("Processing " + this.currentProcessingItem, "processing");
-
-    // Calculate the processing time based on weight
-    this.processingTime = this.currentProcessingItem.weight * constants.PROCESSING_TIME_PER_GRAM;
-    this.processingStartTime = new Date();
-
-    var _this = this;
-    this.processingTimespan = setTimeout(function() {
-      _this.wdm.finishedProcessSignal();
-      _this.handleProcessing(constants.STEP_PROCESSING_REMOVE_ITEM_FROM_SCALE);
-    }, this.processingTime * 1000);
-  }
-
-  finishProcessing() {
-    log("Finished processing item: " + this.currentProcessingItem, "processing");
-
-    // Any new arrivals?
-    if (this.arrivalQueue.length > 0) {
-      this.handleArrival(constants.STEP_ARRIVAL_NEXT_FROM_QUEUE);
-    }
-    // If no arrivals, any items to process?
-    else if (this.processingQueue.length > 0) {
-      this.handleProcessing(constants.STEP_PROCESSING_CHECK_SETUP);
-
-    } else {
-      log("No more work to do... ", "idle");
-      this.wdm.setStatus(constants.WORKSTATION_STATUS_IDLE);
-      this.wdm.setAction(constants.ACTION_NONE);
-    }
-  }
-
-  handleArrival(step, item = null) {
-    // Check if this arrival can be handled immediately
-    if (step == constants.STEP_ARRIVAL_CHECK_IMMEDIATE_HANDLING) {
-      if (this.status == constants.WORKSTATION_STATUS_IDLE && this.arrivalQueue.length == 0) {
-        this.currentArrivalItem = item;
-        this.handleArrival(constants.STEP_ARRIVAL_MEASURE_ITEM);
-      } else
-        this.arrivalQueue.push(item);
-      return;
-    }
-
-    if (step == constants.STEP_ARRIVAL_NEXT_FROM_QUEUE) {
-      this.currentArrivalItem = this.selectNextArrivalItem();
-      this.handleArrival(constants.STEP_ARRIVAL_MEASURE_ITEM);
-      return;
-    }
-
-    if (step == constants.STEP_ARRIVAL_MEASURE_ITEM) {
-      this.wdm.setStatus(constants.WORKSTATION_STATUS_ARRIVAL);
-      log("Please put " + this.currentArrivalItem + " onto scale for measurement!", "arrival");
-      this.measureItemOnScale();
-      return;
-    }
-
-    if (step == constants.STEP_ARRIVAL_CONFIRM_MEASUREMENT) {
-      log("Please confirm item measurement: Color: " + item.c + ", Weight: " + item.w, "arrival");
-      this.wdm.setAction(constants.ACTION_CONFIRM);
-      return;
-    }
-
-    if (step == constants.STEP_ARRIVAL_SAVE_MEASUREMENT) {
-      this.saveItemMeasurements();
-      log("Please remove item from scale!", "arrival");
-      this.wdm.setAction(constants.ACTION_REMOVE_ITEM);
-      return;
-    }
-
-    if (step == constants.STEP_ARRIVAL_QUEUE) {
-      this.queueCurrentArrivalItem();
-      return;
-    }
-  }
-
+  /**** FUNCTIONS FOR PROCESSING PROCESS ****/
   handleProcessing(step, item = null) {
 
     /* STEP 1: Identify item and check if setup is necessay */
@@ -243,6 +224,52 @@ class Workstation {
     }
   }
 
+  processItem() {
+    this.wdm.setAction(constants.ACTION_WAIT);
+    log("Processing " + this.currentProcessingItem, "processing");
+
+    // Calculate the processing time based on weight
+    this.processingTime = this.currentProcessingItem.weight * constants.PROCESSING_TIME_PER_GRAM;
+    this.processingStartTime = new Date();
+
+    var _this = this;
+    this.processingTimespan = setTimeout(function() {
+      _this.wdm.finishedProcessSignal();
+      _this.handleProcessing(constants.STEP_PROCESSING_REMOVE_ITEM_FROM_SCALE);
+    }, this.processingTime * 1000);
+  }
+
+  finishProcessing() {
+    log("Finished processing item: " + this.currentProcessingItem, "processing");
+
+    // Any new arrivals?
+    if (this.arrivalQueue.length > 0) {
+      this.handleArrival(constants.STEP_ARRIVAL_NEXT_FROM_QUEUE);
+    }
+    // If no arrivals, any items to process?
+    else if (this.processingQueue.length > 0) {
+      this.handleProcessing(constants.STEP_PROCESSING_CHECK_SETUP);
+
+    } else {
+      log("No more work to do... ", "idle");
+      this.wdm.setStatus(constants.WORKSTATION_STATUS_IDLE);
+      this.wdm.setAction(constants.ACTION_NONE);
+    }
+  }
+
+  /* Simple FIFO Queue */
+  selectNextProcessingItem(takeout = true) {
+    if (this.processingQueue.length > 0) {
+      if (takeout === true)
+        return this.processingQueue.shift();
+      else {
+        log("Returning first in queue.", "debug");
+        return this.processingQueue[0];
+      }
+    }
+  }
+
+  /**** FUNCTIONS FOR PROCESSING PROCESS ****/
   handleSetup(step) {
     // STEP 1: Confirm setup by button press
     if (step == constants.STEP_SETUP_CONFIRM) {
@@ -263,27 +290,6 @@ class Workstation {
     }
   }
 
-  /* Simple FIFO Queue */
-  selectNextArrivalItem() {
-    if (this.arrivalQueue.length > 0) {
-      return this.arrivalQueue.shift();
-    }
-  }
-
-  /* Simple FIFO Queue */
-  selectNextProcessingItem(takeout = true) {
-    if (this.processingQueue.length > 0) {
-      if (takeout === true)
-        return this.processingQueue.shift();
-      else {
-        log("Returning first in queue.", "debug");
-        return this.processingQueue[0];
-      }
-    }
-  }
-
-  releaseItem(item) {}
-
   setup(toColor) {
     log("Setup up " + this + " to color >" + toColor + "<", "setup");
 
@@ -300,15 +306,19 @@ class Workstation {
     }, this.setupTime * 1000);
   }
 
-  calculateSetupTime(toColor) {
-    return 10;
-  }
-
   finishSetup() {
     log("Finished setup to color >" + this.setupForType + "<", "setup");
     this.handleProcessing(constants.STEP_PROCESSING_PUT_ITEM_ON_SCALE);
   }
 
+  calculateSetupTime(toColor) {
+    return 10;
+  }
+
+  /**** FUNCTIONS FOR RELEASE PROCESS ****/
+  releaseItem(item) {}
+
+  // Helper function for printing the workstation
   toString() {
     return "Workstation >" + this.name + "< at >" + this.host + "<";
   }

@@ -22,7 +22,6 @@ w.initialize().then(testWorksation); //.catch(err => console.log("Error in test 
 function testWorksation() {
   log("Test started for: " + w, "info");
 
-
   /* Simulate the arrival of a new item */
   immediateArrival(w);
 
