@@ -41,6 +41,9 @@ class DeviceManager {
     this.leftButtonPressedListeners = [];
     this.rightButtonPressedListeners = [];
 
+    this.leftButtonPressed = false;
+    this.rightButtonPressed = false;
+
   }
 
   registerWeightListener(callback) {
@@ -58,6 +61,29 @@ class DeviceManager {
   registerRightButtonPressedListener(callback) {
     this.rightButtonPressedListeners.push(callback);
   }
+
+  _leftButtonChanged(state) {
+    if (state === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
+      this.leftButtonPressed = true;
+    } else if (this.leftButtonPressed === true) {
+      this.leftButtonPressedListeners.forEach(function(callback) {
+        callback();
+      });
+      this.leftButtonPressed = false;
+    }
+  }
+
+  _rightButtonChanged(state) {
+    if (state === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {
+      this.rightButtonPressed = true;
+    } else if (this.rightButtonPressed === true) {
+      this.rightButtonPressedListeners.forEach(function(callback) {
+        callback();
+      });
+      this.rightButtonPressed = false;
+    }
+  }
+
 
   setup() {
     return new Promise((resolve, reject) => {
@@ -129,18 +155,10 @@ class DeviceManager {
               device = new tinkerforge.BrickletDualButton(uid, _this.ipcon);
               device.on(tinkerforge.BrickletDualButton.CALLBACK_STATE_CHANGED,
                 function(buttonL, buttonR, ledL, ledR) {
-                  if (buttonL === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {} else {
-                    _this.leftButtonPressedListeners.forEach(function(callback) {
-                      callback();
-                    });
-                  }
-                  if (buttonR === tinkerforge.BrickletDualButton.BUTTON_STATE_PRESSED) {} else {
-                    _this.rightButtonPressedListeners.forEach(function(callback) {
-                      callback();
-                    });
-                  }
-                }
-              );
+                  _this._leftButtonChanged(buttonL);
+                  _this._rightButtonChanged(buttonR);
+                });
+
               _this.dualButton = device;
               break;
             case 243:
