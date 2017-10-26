@@ -44,6 +44,8 @@ class DeviceManager {
     this.leftButtonPressed = false;
     this.rightButtonPressed = false;
 
+    this.positionFirstLED = "";
+
   }
 
   registerWeightListener(callback) {
@@ -127,9 +129,16 @@ class DeviceManager {
             case 271:
               deviceName = "RGB LED Bricklet";
               device = new tinkerforge.BrickletRGBLED(uid, _this.ipcon);
-              if (position == "a")
-                _this.statusLED = device
-              else _this.actionLED = device;
+              if (_this.positionFirstLED == "") {
+                _this.positionFirstLED = position;
+                _this.statusLED = device;
+              } else if (_this.positionFirstLED <= position) {
+                _this.actionLED = device;
+              } else {
+                _this.actionLED = _this.statusLED;
+                _this.statusLED = device;
+
+              }
               break;
             case 242:
               deviceName = "Piezo Speaker Bricklet";
