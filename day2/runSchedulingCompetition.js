@@ -24,6 +24,14 @@ function startCompetition() {
   log("Competition started for: " + w, "info");
 
   // Schedule arrivals in the future
+  // scheduleCompetition
+  scheduleArrival(w, 5, constants.COLOR_RED);
+
+  setInterval(checkAllFinished, 500);
+
+}
+
+function scheduleCompetition() {
   scheduleArrival(w, 2, constants.COLOR_GREEN);
   scheduleArrival(w, 18, constants.COLOR_BLUE);
   scheduleArrival(w, 10, constants.COLOR_RED);
@@ -34,9 +42,6 @@ function startCompetition() {
   scheduleArrival(w, 10, constants.COLOR_RED);
   scheduleArrival(w, 41, constants.COLOR_BLUE);
   scheduleArrival(w, 13, constants.COLOR_RED);
-
-  setInterval(checkAllFinished, 500);
-
 }
 
 function scheduleArrival(workstation, inSeconds, color) {
